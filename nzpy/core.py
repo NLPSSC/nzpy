@@ -20,12 +20,12 @@ from itertools import count, islice
 from json import dumps, loads
 from os import path
 from struct import Struct
+from threading import Lock
 from time import localtime
 from uuid import UUID
 from warnings import warn
 
 import nzpy
-
 from . import handshake, numeric
 
 # Copyright (c) 2007-2009, Mathieu Fenniak
@@ -1112,6 +1112,9 @@ class Connection():
     NotSupportedError = property(
         lambda self: self._getError(NotSupportedError))
 
+    FILES_CREATED = {}
+    FILES_CREATED_LOCK = Lock()
+
     def __enter__(self):
         return self
 
@@ -1164,11 +1167,11 @@ class Connection():
         # if no logging has been setup by the caller,
         # and no filename is specified
         # then come up with a file name
-        self.log = logging.getLogger("nzpy.Connection["+database+"}]")
+        self.log = logging.getLogger("nzpy.Connection[" + database + "}]")
         self.log.setLevel(logLevel)
 
         if logOptions & LogOptions.Logfile:
-            h = logging.handlers.\
+            h = logging.handlers. \
                 RotatingFileHandler('nzpy.log', maxBytes=1024 ** 3 * 10)
             fmt = logging.Formatter(
                 '%(asctime)s (%(process)s) [%(name)s:%(filename)s:'
@@ -1253,7 +1256,7 @@ class Connection():
         def array_in(data, idx, length):
             arr = []
             prev_c = None
-            for c in data[idx:idx + length].decode(self._client_encoding).\
+            for c in data[idx:idx + length].decode(self._client_encoding). \
                     translate(trans_tab).replace('NULL', 'None'):
                 if c not in ('[', ']', ',', 'N') and prev_c in ('[', ','):
                     arr.extend("Decimal('")
@@ -1846,7 +1849,7 @@ class Connection():
         fname = None
         fh = None
 
-        while 1:
+        while True:
             response = self._read(1)
             self.log.debug("Backend response: %s", response)
             self._read(4)
@@ -1911,15 +1914,20 @@ class Connection():
                 fnameBuf = self._read(length)
                 fname = str(fnameBuf, self._client_encoding)
                 try:
-
+                    # Connection.FILES_CREATED_LOCK.acquire()
+                    # if fname in Connection.FILES_CREATED and Connection.FILES_CREATED[fname] is True:
+                    #     fh = open(fname, "w")
+                    # else:
+                    #     Connection.FILES_CREATED[fname] = True
                     fh = open(fname, "w+")
+                    # Connection.FILES_CREATED_LOCK.release()
                     self.log.debug("Successfully opened file: %s", fname)
                     # file open successfully, send status back to datawriter
                     buf = bytearray(i_pack(0))
                     self._write(buf)
                     self._flush()
-                except Exception:
-                    self.log.warning("Error while opening file")
+                except Exception as ex:
+                    self.log.warning(f"Error while opening file: {str(ex)}")
 
             if response == b"U":  # handle unload data
                 self.receiveAndWriteDatatoExternal(fname, fh)
@@ -2329,7 +2337,14 @@ class Connection():
                 try:
                     blockBuffer = str(self._read(numBytes),
                                       self._client_encoding)
-                    fh = open(fname, "w+")
+                    Connection.FILES_CREATED_LOCK.acquire()
+                    if fname in Connection.FILES_CREATED and Connection.FILES_CREATED[fname] is True:
+                        fh = open(fname, "a")
+                    else:
+                        Connection.FILES_CREATED[fname] = True
+                        fh = open(fname, "w+")
+                    Connection.FILES_CREATED_LOCK.release()
+                    # fh = open(fname, "w+")
                     fh.write(blockBuffer)
                     self.log.info("Successfully written data into file")
                 except Exception:
