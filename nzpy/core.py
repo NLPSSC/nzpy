@@ -1846,7 +1846,7 @@ class Connection():
         fname = None
         fh = None
 
-        while (1):
+        while 1:
             response = self._read(1)
             self.log.debug("Backend response: %s", response)
             self._read(4)
@@ -1911,6 +1911,7 @@ class Connection():
                 fnameBuf = self._read(length)
                 fname = str(fnameBuf, self._client_encoding)
                 try:
+
                     fh = open(fname, "w+")
                     self.log.debug("Successfully opened file: %s", fname)
                     # file open successfully, send status back to datawriter
