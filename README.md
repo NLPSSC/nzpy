@@ -1,5 +1,9 @@
 # nzpy: Pure python driver for IBM Netezza
 
+## NLPSSC Conversion
+
+This includes a change in how documents are streamed from the VUMC Netezza appliance to accomodate for I/O flags that signal EOF too early, which can cause overwriting of data if exloading documents.
+
 ## Scope
 
 nzpy is a pure-Python IBM Netezza driver that complies with DB-API 2.0. It is tested on Python versions 3.5+. It is supported with NPS 11.1.2.x and later. Although nzpy works with older NPS versions but it do not support few features such as external table, parameter style query etc.
