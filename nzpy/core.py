@@ -1168,9 +1168,10 @@ class Connection:
         char_varchar_encoding,
         logOptions=LogOptions.Inherit,
         pgOptions=None,
+        client_encoding='latin9'
     ):
         self._char_varchar_encoding = char_varchar_encoding
-        self._client_encoding = "utf8"
+        self._client_encoding = client_encoding if client_encoding else "utf8"
         self._commands_with_count = (b"INSERT", b"DELETE", b"UPDATE")
         self.notifications = deque(maxlen=100)
         self.parameter_statuses = deque(maxlen=100)
