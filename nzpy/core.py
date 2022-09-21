@@ -25,12 +25,12 @@ from itertools import count, islice
 from json import dumps, loads
 from os import path
 from struct import Struct
+from threading import Lock
 from time import localtime
 from uuid import UUID
 from warnings import warn
 
 import nzpy
-
 from . import handshake, numeric
 
 length_fn = len
@@ -1130,6 +1130,9 @@ class Connection:
     ProgrammingError = property(lambda self: self._getError(ProgrammingError))
     NotSupportedError = property(lambda self: self._getError(NotSupportedError))
 
+    FILES_CREATED = {}
+    FILES_CREATED_LOCK = Lock()
+
     def __enter__(self):
         return self
 
@@ -1168,7 +1171,7 @@ class Connection:
         char_varchar_encoding,
         logOptions=LogOptions.Inherit,
         pgOptions=None,
-        client_encoding='latin9'
+        client_encoding="latin9",
     ):
         self._char_varchar_encoding = char_varchar_encoding
         self._client_encoding = client_encoding if client_encoding else "utf8"
@@ -1912,7 +1915,7 @@ class Connection:
         fname = None
         fh = None
 
-        while 1:
+        while True:
             response = self._read(1)
             self.log.debug("Backend response: %s", response)
             self._read(4)
@@ -1980,14 +1983,20 @@ class Connection:
                 fnameBuf = self._read(length)
                 fname = str(fnameBuf, self._client_encoding)
                 try:
-                    fh = open(fname, "w+")
+                    # Connection.FILES_CREATED_LOCK.acquire()
+                    # if fname in Connection.FILES_CREATED and Connection.FILES_CREATED[fname] is True:
+                    #     fh = open(fname, "w")
+                    # else:
+                    #     Connection.FILES_CREATED[fname] = True
+                    fh = open(fname, "w+", encoding=self._client_encoding)
+                    # Connection.FILES_CREATED_LOCK.release()
                     self.log.debug("Successfully opened file: %s", fname)
                     # file open successfully, send status back to datawriter
                     buf = bytearray(i_pack(0))
                     self._write(buf)
                     self._flush()
-                except Exception:
-                    self.log.warning("Error while opening file")
+                except Exception as ex:
+                    self.log.warning(f"Error while opening file: {str(ex)}")
 
             if response == b"U":  # handle unload data
                 self.receiveAndWriteDatatoExternal(fname, fh)
@@ -2298,6 +2307,7 @@ class Connection:
                 )
 
             if fldtype == NzTypeTimestamp:
+                workspace = None
                 if fldlen == 8:
                     workspace = int.from_bytes(
                         fieldDataP[:fldlen], byteorder="little", signed=True
@@ -2308,6 +2318,7 @@ class Connection:
                     )
 
                 if fldlen == 8:
+                    assert workspace
                     timestamp_value = timestamp2struct(workspace)
                 elif fldlen == 4:
                     #  could not find any case for the same and
@@ -2450,7 +2461,17 @@ class Connection:
                     len_bytes = length_fn(bytes_read)
                     self.log.debug(f"len(bytes_read_from_stream): {len_bytes}")
                     blockBuffer = str(bytes_read, self._client_encoding)
-                    fh = open(fname, "w+")
+                    Connection.FILES_CREATED_LOCK.acquire()
+                    if (
+                        fname in Connection.FILES_CREATED
+                        and Connection.FILES_CREATED[fname] is True
+                    ):
+                        fh = open(fname, "a", encoding=self._client_encoding)
+                    else:
+                        Connection.FILES_CREATED[fname] = True
+                        fh = open(fname, "w+", encoding=self._client_encoding)
+                    Connection.FILES_CREATED_LOCK.release()
+                    # fh = open(fname, "w+")
                     fh.write(blockBuffer)
                     self.log.info("Successfully written data into file")
                 except Exception as ex:

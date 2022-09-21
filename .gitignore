@@ -1,1 +1,4 @@
+/venv/**
+/nzpy.egg-info/**
+*.pyc
 /nzpy/__pycache__
