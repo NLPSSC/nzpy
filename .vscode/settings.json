@@ -1,4 +1,11 @@
 {
     "python.defaultInterpreterPath": "",
-    "editor.defaultFormatter": "ms-python.black-formatter"
+    "editor.defaultFormatter": "ms-python.black-formatter",
+    "python.formatting.provider": "black",
+    "files.watcherExclude": {
+        "**/.git/**": true,
+        "**/.git/objects/**": false,
+        "**/.git/subtree-cache/**": false,
+        "**/venv/**": true
+    }
 }
